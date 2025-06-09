@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản Lý Hợp Đồng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        .hidden {
+            display: none;
+        }
+        .form-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title i {
+            font-size: 1.2em;
+        }
+        .form-label {
+            font-weight: 500;
+            color: #555;
+        }
+        .form-select, .form-control {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+        }
+        .form-select:focus, .form-control:focus {
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+        /* Style cho danh sách dịch vụ */
+        .services-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .service-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            transition: all 0.3s ease;
+        }
+        .service-item:last-child {
+            border-bottom: none;
+        }
+        .service-item:hover {
+            background-color: #f8f9fa;
+        }
+        .service-item label {
+            margin: 0;
+            cursor: pointer;
+            width: 100%;
+        }
+        .service-checkbox {
+            cursor: pointer;
+        }
+        /* Custom checkbox style */
+        .service-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #007bff;
+            border-radius: 3px;
+        }
+        .service-checkbox:checked {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        /* Scrollbar style */
+        .services-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .services-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        .services-list::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        .services-list::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Style cho modal preview */
+        .preview-content {
+            max-height: 70vh;
+            overflow-y: auto;
+            padding: 20px;
+            text-align: justify;
+        }
+        .preview-header p {
+            margin-bottom: 5px;
+        }
+        .preview-title h4 {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .preview-title p {
+            margin-bottom: 10px;
+        }
+        .preview-contract h3 {
+            margin-bottom: 5px;
+        }
+        .preview-contract p {
+            margin-bottom: 10px;
+        }
+        .preview-intro p {
+            text-align: justify;
+            margin-bottom: 10px;
+            white-space: pre-line;
+        }
+        .preview-section {
+            margin-top: 30px;
+        }
+        .content-item {
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: justify;
+        }
+        .content-detail {
+            margin: 5px 0 5px 20px;
+            text-align: justify;
+        }
+        .preview-title h4[id*="EN"],
+        .preview-title p[id*="ENSub"],
+        .preview-contract h3[id*="EN"] {
+            font-style: italic;
+        }
+        .preview-intro p[id*="EN"] {
+            font-style: italic;
+        }
+        /* Style cho bảng hợp đồng */
+        .contracts-table {
+            margin-top: 20px;
+        }
+        .action-buttons .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            margin: 0 2px;
+        }
+        .service-item.selected {
+            background-color: #e3f2fd;
+        }
+        #modalServicesList {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .service-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            transition: all 0.3s ease;
+        }
+        .service-item:last-child {
+            border-bottom: none;
+        }
+        .service-item:hover {
+            background-color: #f8f9fa;
+        }
+        .service-item label {
+            margin: 0;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+        .service-checkbox {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Quản Lý Hợp Đồng</h1>
+            <button type="button" class="btn btn-primary" onclick="showContractModal()">
+                <i class="bi bi-plus-circle"></i> Thêm Hợp Đồng
+            </button>
+        </div>
+
+        <!-- Bảng danh sách hợp đồng -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="bi bi-file-text"></i>
+                <span>Danh Sách Hợp Đồng</span>
+            </div>
+            <div class="table-responsive contracts-table">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên Hợp Đồng</th>
+                            <th>Số Hợp Đồng</th>
+                            <th>Ngày Ký</th>
+                            <th>Dịch Vụ</th>
+                            <th>Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contractsTableBody">
+                        <!-- Dữ liệu sẽ được thêm vào đây bằng JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Form tạo hợp đồng -->
+        <div class="form-section">
+            <div class="section-title">
+                <i class="bi bi-file-earmark-plus"></i>
+                <span>Tạo Hợp Đồng Mới</span>
+            </div>
+            <form id="contractForm" method="POST" action="{{ url_for('contract.generate_contract') }}">
+                <!-- Phần Dịch Vụ -->
+                <div class="mb-3">
+                    <label class="form-label">Chọn dịch vụ</label>
+                    <div class="services-list" id="servicesList">
+                        <!-- Danh sách dịch vụ sẽ được thêm vào đây bằng JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Phần Chi Tiết Hợp Đồng -->
+                <div id="contractDetails" class="hidden">
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="contractName" class="form-label">Tên hợp đồng</label>
+                            <input type="text" class="form-control" id="contractName" name="contract_name" 
+                                   value="HỢP ĐỒNG DỊCH VỤ" disabled>
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label for="contractNumber" class="form-label">Số hợp đồng <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="contractNumber" name="contract_number" required>
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label for="signDate" class="form-label">Ngày ký <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="signDate" name="sign_date" required>
+                        </div>
+                    </div>
+                    <div class="text-center mt-4">
+                        <button type="button" class="btn btn-secondary btn-preview px-4" onclick="previewContract()">
+                            <i class="bi bi-eye"></i> Xem trước
+                        </button>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-file-earmark-word"></i> Tạo File Word
+                        </button>
+                        <button type="button" class="btn btn-success px-4" onclick="createContractFromDetails()">
+                            <i class="bi bi-plus-circle"></i> Lưu Hợp Đồng
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Thêm/Sửa Hợp Đồng -->
+    <div class="modal fade" id="contractModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="contractModalTitle">Thêm Hợp Đồng Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="contractModalForm">
+                        <input type="hidden" id="contractId">
+                        <div class="mb-3">
+                            <label for="modalContractName" class="form-label">Tên hợp đồng</label>
+                            <input type="text" class="form-control" id="modalContractName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modalContractNumber" class="form-label">Số hợp đồng</label>
+                            <input type="text" class="form-control" id="modalContractNumber" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modalSignDate" class="form-label">Ngày ký</label>
+                            <input type="date" class="form-control" id="modalSignDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Dịch vụ</label>
+                            <div class="services-list" id="modalServicesList">
+                                <!-- Danh sách dịch vụ sẽ được thêm vào đây bằng JavaScript -->
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" onclick="saveContract()">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xem Trước -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xem Trước Hợp Đồng</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="preview-content">
+                        <!-- Header -->
+                        <div class="preview-header">
+                            <div class="row">
+                                <div class="col-6">
+                                    <img src="{{ url_for('static', filename='images/logo_contract.png') }}" alt="Logo" style="max-width: 200px;">
+                                </div>
+                                <div class="col-6 text-end">
+                                    <p id="previewHanoi"></p>
+                                    <p id="previewHCM"></p>
+                                    <p id="previewPhone"></p>
+                                    <p id="previewEmail"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="preview-title text-center mt-4">
+                            <h4 id="previewTitleVN"></h4>
+                            <p id="previewTitleVNSub"></p>
+                            <h4 id="previewTitleEN"></h4>
+                            <p id="previewTitleENSub"></p>
+                            <p>———oOo———</p>
+                        </div>
+
+                        <!-- Contract -->
+                        <div class="preview-contract text-center mt-4">
+                            <h3 id="previewContractVN"></h3>
+                            <p><i id="previewContractVNNumber"></i></p>
+                            <h3 id="previewContractEN"></h3>
+                            <p><i id="previewContractENNumber"></i></p>
+                        </div>
+
+                        <!-- Date and Intro -->
+                        <div class="preview-intro mt-4">
+                            <p id="previewDateVN"></p>
+                            <p id="previewIntroEN"></p>
+                        </div>
+
+                        <!-- Content -->
+                        <div class="preview-section mt-4">
+                            <h3>ĐIỀU 3: NỘI DUNG CÔNG VIỆC</h3>
+                            <div id="previewContent"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Khởi tạo các biến
+        const contractModal = new bootstrap.Modal(document.getElementById('contractModal'));
+        let editingContractId = null;
+        let selectedServiceIds = [];
+
+        // Utility functions
+        const formatDateToVietnamese = (dateString) => {
+            const date = new Date(dateString);
+            if (!isNaN(date)) {
+                const day = date.getDate().toString().padStart(2, '0');
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+            return dateString;
+        };
+
+        const showLoading = () => {
+            Swal.fire({
+                title: 'Đang xử lý...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+        };
+
+        const showError = (message) => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: message,
+                confirmButtonText: 'Đóng'
+            });
+        };
+
+        const showSuccess = (message) => {
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                text: message,
+                confirmButtonText: 'Đóng'
+            });
+        };
+
+        const showConfirm = async (message) => {
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: 'Xác nhận',
+                text: message,
+                showCancelButton: true,
+                confirmButtonText: 'Đồng ý',
+                cancelButtonText: 'Hủy'
+            });
+            return result.isConfirmed;
+        };
+
+        // Main functions
+        const loadServicesList = async () => {
+            try {
+                const response = await $.getJSON("{{ url_for('contract.get_services') }}");
+                const $servicesList = $('#servicesList');
+                $servicesList.empty();
+                
+                response.forEach(service => {
+                    const serviceItem = `
+                        <div class="service-item">
+                            <label class="d-flex align-items-center">
+                                <input type="checkbox" class="service-checkbox me-2" 
+                                       value="${service.id}" id="service${service.id}">
+                                <span>${service.name}</span>
+                            </label>
+                        </div>
+                    `;
+                    $servicesList.append(serviceItem);
+                });
+
+                // Add change event to highlight selected services
+                $('#servicesList .service-checkbox').on('change', function() {
+                    $(this).closest('.service-item').toggleClass('selected', this.checked);
+                    const checkedServices = $('.service-checkbox:checked').length;
+                    $('#contractDetails')[checkedServices > 0 ? 'removeClass' : 'addClass']('hidden');
+                });
+            } catch (error) {
+                console.error('Error loading services list:', error);
+                showError('Có lỗi khi tải danh sách dịch vụ');
+            }
+        };
+
+        const loadModalServices = async (selectedIds = []) => {
+            try {
+                const response = await $.getJSON("{{ url_for('contract.get_services') }}" + (editingContractId ? `?contract_id=${editingContractId}` : ''));
+                const $servicesList = $('#modalServicesList');
+                $servicesList.empty();
+                
+                response.forEach(service => {
+                    const serviceItem = `
+                        <div class="service-item">
+                            <label class="d-flex align-items-center">
+                                <span>${service.name}</span>
+                            </label>
+                        </div>
+                    `;
+                    $servicesList.append(serviceItem);
+                });
+            } catch (error) {
+                console.error('Error loading modal services:', error);
+                showError('Có lỗi khi tải danh sách dịch vụ');
+            }
+        };
+
+        const loadContracts = async () => {
+            try {
+                showLoading();
+                const response = await $.getJSON("{{ url_for('contract.get_contracts') }}");
+                const $tbody = $('#contractsTableBody');
+                $tbody.empty();
+                
+                response.forEach((contract, index) => {
+                    const row = `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${contract.ten_hop_dong}</td>
+                            <td>${contract.so_hop_dong}</td>
+                            <td>${contract.ngay_ky}</td>
+                            <td>${contract.dich_vu}</td>
+                            <td class="action-buttons">
+                                <button class="btn btn-sm btn-primary" onclick="editContract(${contract.id})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteContract(${contract.id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    $tbody.append(row);
+                });
+                Swal.close();
+            } catch (error) {
+                console.error('Error loading contracts:', error);
+                showError('Có lỗi khi tải danh sách hợp đồng');
+            }
+        };
+
+        const validateContractForm = () => {
+            const contractNumber = $('#contractNumber').val();
+            const signDate = $('#signDate').val();
+            const checkedServices = $('#servicesList .service-checkbox:checked').length;
+
+            if (checkedServices === 0) {
+                showError('Vui lòng chọn ít nhất một dịch vụ!');
+                return false;
+            }
+
+            if (!contractNumber.trim()) {
+                showError('Vui lòng nhập số hợp đồng!');
+                return false;
+            }
+
+            if (!signDate) {
+                showError('Vui lòng chọn ngày ký!');
+                return false;
+            }
+
+            return true;
+        };
+
+        const createContractFromDetails = async () => {
+            if (!validateContractForm()) {
+                return;
+            }
+
+            // Lấy danh sách ID dịch vụ được chọn
+            const selectedServices = [];
+            $('.service-checkbox:checked').each(function() {
+                selectedServices.push($(this).val());
+            });
+
+            const contractData = {
+                ten_hop_dong: $('#contractName').val(),
+                so_hop_dong: $('#contractNumber').val(),
+                ngay_ky: formatDateToVietnamese($('#signDate').val()),
+                dich_vu_ids: selectedServices  // Thêm danh sách dịch vụ vào dữ liệu gửi đi
+            };
+
+            try {
+                showLoading();
+                const response = await $.ajax({
+                    url: "{{ url_for('contract.create_update_contract') }}",
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(contractData)
+                });
+
+                showSuccess(response.message);
+                await loadContracts();
+
+                // Reset form
+                $('#contractNumber').val('');
+                $('#signDate').val('');
+                $('.service-checkbox').prop('checked', false);
+                $('#contractDetails').addClass('hidden');
+            } catch (error) {
+                console.error('Error creating contract:', error);
+                showError(error.responseJSON?.error || 'Có lỗi xảy ra khi tạo hợp đồng!');
+            }
+        };
+
+        const editContract = async (id) => {
+            try {
+                showLoading();
+                const response = await $.get(`{{ url_for('contract.get_contract', id_hop_dong=0) }}`.replace('0', id));
+                editingContractId = id;
+                selectedServiceIds = response.id_dich_vu || [];
+                
+                $('#contractId').val(id);
+                $('#modalContractName').val(response.ten_hop_dong);
+                $('#modalContractNumber').val(response.so_hop_dong);
+                
+                // Chuyển đổi ngày từ dd/mm/yyyy sang yyyy-mm-dd cho input type="date"
+                const [day, month, year] = response.ngay_ky.split('/');
+                $('#modalSignDate').val(`${year}-${month}-${day}`);
+                
+                $('#contractModalTitle').text('Sửa Hợp Đồng');
+                
+                // Load services và chọn dịch vụ hiện tại
+                await loadModalServices(selectedServiceIds);
+                
+                Swal.close();
+                contractModal.show();
+            } catch (error) {
+                console.error('Error editing contract:', error);
+                showError('Có lỗi khi tải thông tin hợp đồng');
+            }
+        };
+
+        const deleteContract = async (id) => {
+            const confirmed = await showConfirm('Bạn có chắc chắn muốn xóa hợp đồng này?');
+            if (confirmed) {
+                try {
+                    showLoading();
+                    const response = await $.ajax({
+                        url: `{{ url_for('contract.remove_contract', id_hop_dong=0) }}`.replace('0', id),
+                        type: 'DELETE'
+                    });
+                    
+                    showSuccess(response.message);
+                    await loadContracts();
+                } catch (error) {
+                    console.error('Error deleting contract:', error);
+                    showError(error.responseJSON?.error || 'Có lỗi xảy ra khi xóa hợp đồng!');
+                }
+            }
+        };
+
+        const saveContract = async () => {
+            const contractData = {
+                ten_hop_dong: $('#modalContractName').val(),
+                so_hop_dong: $('#modalContractNumber').val(),
+                ngay_ky: formatDateToVietnamese($('#modalSignDate').val()),
+                dich_vu_ids: selectedServiceIds
+            };
+
+            if (editingContractId) {
+                contractData.id_hop_dong = editingContractId;
+            }
+
+            try {
+                showLoading();
+                const response = await $.ajax({
+                    url: "{{ url_for('contract.create_update_contract') }}",
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(contractData)
+                });
+
+                showSuccess(response.message);
+                contractModal.hide();
+                await loadContracts();
+            } catch (error) {
+                console.error('Error saving contract:', error);
+                showError(error.responseJSON?.error || 'Có lỗi xảy ra khi lưu hợp đồng!');
+            }
+        };
+
+        const previewContract = async () => {
+            if (!validateContractForm()) {
+                return;
+            }
+
+            // Lấy danh sách ID dịch vụ được chọn
+            const selectedServices = [];
+            $('#servicesList .service-checkbox:checked').each(function() {
+                selectedServices.push($(this).val());
+            });
+
+            const formData = new FormData();
+            formData.append('contract_number', $('#contractNumber').val());
+            formData.append('sign_date', $('#signDate').val());
+            selectedServices.forEach(id => {
+                formData.append('service_ids[]', id);
+            });
+
+            try {
+                showLoading();
+                const response = await $.ajax({
+                    url: "{{ url_for('contract.preview') }}",
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false
+                });
+
+                updatePreviewModal(response);
+                Swal.close();
+                new bootstrap.Modal(document.getElementById('previewModal')).show();
+            } catch (error) {
+                showError(error.responseJSON?.error || 'Có lỗi xảy ra khi tạo xem trước!');
+            }
+        };
+
+        const updatePreviewModal = (response) => {
+            // Header
+            $('#previewHanoi').text(response.header.hanoi);
+            $('#previewHCM').text(response.header.hcm);
+            $('#previewPhone').text(response.header.phone);
+            $('#previewEmail').text(response.header.email);
+
+            // Title
+            $('#previewTitleVN').text(response.title.vn);
+            $('#previewTitleVNSub').text(response.title.vn_sub);
+            $('#previewTitleEN').text(response.title.en);
+            $('#previewTitleENSub').text(response.title.en_sub);
+
+            // Contract
+            $('#previewContractVN').text(response.contract.vn);
+            $('#previewContractVNNumber').text(response.contract.vn_number);
+            $('#previewContractEN').text(response.contract.en);
+            $('#previewContractENNumber').text(response.contract.en_number);
+
+            // Date and Intro
+            $('#previewDateVN').text(response.date.vn);
+            $('#previewIntroEN').text(response.intro.en);
+
+            // Content
+            const contentHtml = response.dieu_3.map(service => {
+                let serviceHtml = `<div class="content-item">${service.ten_dich_vu}</div>`;
+                
+                service.noi_dung.forEach(item => {
+                    if (item.ten_noi_dung) {
+                        serviceHtml += `
+                            <div class="content-item">
+                                ${item.title} ${item.ten_noi_dung}
+                            </div>`;
+                    }
+                    
+                    item.chi_tiet.forEach(detail => {
+                        serviceHtml += `
+                            <div class="content-detail">
+                                ${detail.number} ${detail.text}
+                            </div>`;
+                    });
+                });
+                
+                return serviceHtml;
+            }).join('');
+
+            $('#previewContent').html(contentHtml);
+        };
+
+        // Event handlers
+        $(document).ready(() => {
+            // Load initial data
+            loadServicesList();
+            loadContracts();
+
+            // Handle contract form submit
+            $('#contractForm').on('submit', (e) => {
+                if (!validateContractForm()) {
+                    e.preventDefault();
+                }
+            });
+
+            // Handle sign date change
+            $('#signDate').on('change', function() {
+                const date = new Date($(this).val());
+                if (!isNaN(date)) {
+                    const formattedDate = formatDateToVietnamese(date);
+                    $(this).data('formatted-date', formattedDate);
+                }
+            });
+
+            // Thêm sự kiện khi mở modal
+            $('#contractModal').on('show.bs.modal', async function (e) {
+                await loadModalServices();
+            });
+        });
+    </script>
+</body>
+</html> 

@@ -7,6 +7,8 @@ from app.controllers.check_declaration_controller import check_declaration_bp
 from app.controllers.split_file_controller import split_bp
 from app.controllers.expense_controller import expense_bp
 from app.controllers.report_soa_controller import report_soa_bp
+from app.controllers.contract_controller import contract_bp
+from app.models.database import db
 import os
 from functools import wraps
 from config import Config
@@ -20,6 +22,11 @@ STATIC_DIR = os.path.join(BASE_DIR, 'app', 'static')
 app = Flask(__name__, 
             template_folder=TEMPLATE_DIR,
             static_folder=STATIC_DIR)
+
+# Cấu hình database
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{Config.DATABASE_PATH}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
 
 # Cấu hình session
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -71,6 +78,11 @@ app.register_blueprint(check_declaration_bp)  # Đăng ký check declaration blu
 app.register_blueprint(split_bp, url_prefix='/split')  # Đăng ký split file blueprint
 app.register_blueprint(expense_bp, url_prefix='/expense')  # Đăng ký expense blueprint
 app.register_blueprint(report_soa_bp, url_prefix='/report-soa')  # Đăng ký report soa blueprint
+app.register_blueprint(contract_bp, url_prefix='/contract')  # Đăng ký contract blueprint
+
+# Tạo database và bảng nếu chưa tồn tại
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
     app.run(debug=True)

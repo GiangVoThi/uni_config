@@ -4,8 +4,17 @@ from datetime import timedelta
 class Config:
     # Cấu hình cơ bản
     # SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    STATIC_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app', 'static')
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    # Cấu hình database
+    DATABASE_DIR = os.path.join(os.path.dirname(__file__), 'database')
+    os.makedirs(DATABASE_DIR, exist_ok=True)
+    DATABASE_PATH = os.path.join(DATABASE_DIR, 'identifier.sqlite')
+    DATABASE_BACKUP_DIR = os.path.join(DATABASE_DIR, 'backups')
+    os.makedirs(DATABASE_BACKUP_DIR, exist_ok=True)
+    MAX_DATABASE_BACKUPS = 5  # Số lượng file backup tối đa
 
     # Cấu hình SharePoint
     SHAREPOINT_CONFIG = {
@@ -32,9 +41,9 @@ class Config:
         }
     }
 
-    # SharePoint Configuration
-    SHAREPOINT_CLIENT_ID = "your_client_id_here"
-    SHAREPOINT_CLIENT_SECRET = "your_client_secret_here"
+    # # SharePoint Configuration
+    # SHAREPOINT_CLIENT_ID = "your_client_id_here"
+    # SHAREPOINT_CLIENT_SECRET = "your_client_secret_here"
 
     @staticmethod
     def get_sharepoint_site_url(site_key):
@@ -68,10 +77,6 @@ class Config:
     # Cấu hình thư mục
     DOWNLOAD_ROOT = "DOWNLOAD"
     EXCEL_FILENAME = "Invoice_List.xlsx"
-
-    # Cấu hình database
-    # SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///app.db'
-    # SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Cấu hình bảo mật
     SESSION_COOKIE_SECURE = False  # Chỉ bật True khi chạy trên HTTPS
