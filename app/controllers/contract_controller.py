@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, send_file, jsonify
-from app.services.contract_service import get_service_details, generate_contract_word, preview_contract, upsert_contract, delete_contract
+from app.services.contract_service import get_service_details, generate_contract_word, preview_contract, upsert_contract, delete_contract, get_sharepoint_data
 from app.models.contract_model import dichVu, hopDong, hop_dong_dich_vu
 from app.models.database import db
 from sqlalchemy import text
@@ -22,6 +22,18 @@ def preview():
     contract_number = request.form.get('contract_number')
     sign_date = request.form.get('sign_date')
     
+    # Lấy thông tin công ty từ form
+    company_info = {
+        'company': request.form.get('company_name'),
+        'tax_code': request.form.get('tax_code'),  # Đảm bảo lấy mã số thuế
+        'address': request.form.get('company_address'),
+        'representative': request.form.get('representative'),
+        'position': request.form.get('position')
+    }
+    
+    # Debug log
+    print("Debug - Company Info:", company_info)
+    
     if not service_ids:
         return jsonify({"error": "Vui lòng chọn ít nhất một dịch vụ!"}), 400
     if not contract_number:
@@ -30,14 +42,27 @@ def preview():
         return jsonify({"error": "Vui lòng chọn ngày ký!"}), 400
         
     service_details = get_service_details([int(id) for id in service_ids])
-    preview_data = preview_contract(service_details, contract_number, sign_date)
+    preview_data = preview_contract(service_details, contract_number, sign_date, company_info)
+    
+    # Debug log
+    print("Debug - Preview Data:", preview_data)
+    
     return jsonify(preview_data)
 
-@contract_bp.route('/generate', methods=['POST'])
+@contract_bp.route('/generate_contract', methods=['POST'])
 def generate_contract():
     service_ids = request.form.getlist('service_ids[]')
     contract_number = request.form.get('contract_number')
     sign_date = request.form.get('sign_date')
+    
+    # Lấy thông tin công ty từ form
+    company_info = {
+        'company': request.form.get('company_name'),
+        'tax_code': request.form.get('tax_code'),
+        'address': request.form.get('company_address'),
+        'representative': request.form.get('representative'),
+        'position': request.form.get('position')
+    }
     
     if not service_ids:
         return "Vui lòng chọn ít nhất một dịch vụ!", 400
@@ -47,7 +72,7 @@ def generate_contract():
         return "Vui lòng chọn ngày ký!", 400
         
     service_details = get_service_details([int(id) for id in service_ids])
-    file_path = generate_contract_word(service_details, contract_number, sign_date)
+    file_path = generate_contract_word(service_details, contract_number, sign_date, company_info)
     return send_file(file_path, as_attachment=True)
 
 @contract_bp.route('/api/services', methods=['GET'])
@@ -167,33 +192,16 @@ def get_contract(id_hop_dong):
         print(f"Error in get_contract API: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@contract_bp.route('/init-sample-data')
-def init_sample_data():
+@contract_bp.route('/api/sharepoint-data', methods=['GET'])
+def get_sharepoint_data_api():
     """
-    Khởi tạo dữ liệu mẫu cho testing
+    Lấy dữ liệu từ SharePoint
     """
     try:
-        # Tạo một số dịch vụ mẫu
-        services = [
-            dichVu(ten_dich_vu="Tư vấn du học"),
-            dichVu(ten_dich_vu="Dịch thuật"),
-            dichVu(ten_dich_vu="Đào tạo tiếng Anh")
-        ]
-        
-        for service in services:
-            db.session.add(service)
-        
-        # Tạo một hợp đồng mẫu
-        contract = hopDong(
-            ten_hop_dong="HỢP ĐỒNG DỊCH VỤ",
-            so_hop_dong="HD001/2024",
-            ngay_ky=datetime.now()
-        )
-        db.session.add(contract)
-        
-        db.session.commit()
-        return jsonify({"message": "Đã tạo dữ liệu mẫu thành công"})
-        
+        data = get_sharepoint_data()
+        if data is None:
+            return jsonify({'error': 'Không thể lấy dữ liệu từ SharePoint'}), 500
+        return jsonify(data)
     except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in get_sharepoint_data API: {str(e)}")
+        return jsonify({'error': str(e)}), 500

@@ -4,9 +4,95 @@ import os
 from docx import Document
 from config import Config
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Inches
+from docx.shared import Inches, Pt
 from sqlalchemy import text
 from datetime import datetime
+from office365.runtime.auth.authentication_context import AuthenticationContext
+from office365.sharepoint.client_context import ClientContext
+from flask import session
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+import re
+
+def get_sharepoint_data():
+    """
+    Lấy dữ liệu từ SharePoint list Contract Management
+    """
+    try:
+        if 'user' not in session or not session['user'].get('authenticated'):
+            raise Exception("Chưa đăng nhập")
+        
+        # Lấy thông tin đăng nhập từ session
+        username = session['user'].get('username')
+        password = session['user'].get('password')
+        
+        # Truy cập trực tiếp vào SharePoint site và list
+        site_url = 'https://uniconsulting079.sharepoint.com/sites/ClearanceFlowAutomation'
+        list_name = 'Contract Management'
+        
+        # Khởi tạo SharePoint context với session auth
+        auth_ctx = AuthenticationContext(site_url)
+        if auth_ctx.acquire_token_for_user(username, password):
+            ctx = ClientContext(site_url, auth_ctx)
+            
+            # Lấy danh sách từ SharePoint
+            target_list = ctx.web.lists.get_by_title(list_name)
+            items = target_list.items.get().execute_query()
+            
+            # Chuyển đổi dữ liệu thành format phù hợp
+            companies_data = {
+                'companies': [],
+                'tax_codes': [],
+                'addresses': [],
+                'representatives': [],
+                'positions': []
+            }
+            
+            # Tạo một dictionary để lưu trữ dữ liệu tạm thời và kiểm tra trùng lặp
+            company_records = {}
+            
+            print("Debug - Number of items:", len(items))  # Debug log
+            
+            for item in items:
+                print("Debug - Item properties:", item.properties)  # Debug log
+                
+                # Sử dụng đúng internal name của các trường trong SharePoint
+                company = item.properties.get('T_x00ea_nc_x00f4_ngty')
+                tax_code = item.properties.get('M_x00e3_s_x1ed1_thu_x1ebf_')
+                address = item.properties.get('OData__x0110__x1ecb_ach_x1ec9_')
+                representative = item.properties.get('Ng_x01b0__x1edd_i_x0111__x1ea1_i')
+                position = item.properties.get('Ch_x1ee9_cv_x1ee5_ng_x01b0__x1ed')
+                
+                # Chỉ xử lý nếu có đầy đủ thông tin
+                if company and tax_code and address and representative and position:
+                    # Tạo key duy nhất cho mỗi công ty
+                    company_key = f"{company}_{tax_code}"
+                    
+                    # Nếu công ty chưa được thêm vào, thêm tất cả thông tin vào
+                    if company_key not in company_records:
+                        company_records[company_key] = {
+                            'company': company,
+                            'tax_code': tax_code,
+                            'address': address,
+                            'representative': representative,
+                            'position': position
+                        }
+            
+            # Chuyển dữ liệu từ company_records sang companies_data, đảm bảo thứ tự tương ứng
+            for record in company_records.values():
+                companies_data['companies'].append(record['company'])
+                companies_data['tax_codes'].append(record['tax_code'])
+                companies_data['addresses'].append(record['address'])
+                companies_data['representatives'].append(record['representative'])
+                companies_data['positions'].append(record['position'])
+            
+            print("Debug - Final companies_data:", companies_data)  # Debug log
+            return companies_data
+        else:
+            raise Exception("Không thể xác thực với SharePoint")
+    except Exception as e:
+        print(f"Error fetching SharePoint data: {str(e)}")
+        return None
 
 def get_service_details(service_ids):
     # Chuyển list service_ids thành string để dùng trong câu SQL
@@ -39,7 +125,7 @@ def get_service_details(service_ids):
     
     return details
 
-def preview_contract(service_details, contract_number, sign_date):
+def preview_contract(service_details, contract_number, sign_date, company_info=None):
     preview_data = {
         'header': {
             'hanoi': 'Hanoi: 11 Dich Vong Hau, Cau Giay District',
@@ -65,40 +151,97 @@ def preview_contract(service_details, contract_number, sign_date):
         'intro': {
             'en': f'This contract was made on {sign_date} at UNI CONSULTING CO., LTD.\nAfter discussing the agreement, the two sides agreed to sign a consulting service contract with the following terms:'
         },
+        'article_1': {
+            'title': 'ĐIỀU 1: CÁC BÊN CỦA HỢP ĐỒNG / ARTICLE 1: CONTRACT PARTIES',
+            'party_a': {
+                'title': 'BÊN A / PARTY A:',
+                'company': company_info.get('company', '') if company_info else '',
+                'tax_code': company_info.get('tax_code', '') if company_info else '',
+                'address': company_info.get('address', '') if company_info else '',
+                'representative': company_info.get('representative', '') if company_info else '',
+                'position': company_info.get('position', '') if company_info else '',
+                'note': 'Sau đây gọi tắt là Bên A / Hereinafter referred to as Party A'
+            },
+            'party_b': {
+                'title': 'BÊN B / PARTY B:',
+                'company': 'CÔNG TY TNHH TƯ VẤN UNI / UNI CONSULTING CO., LTD',
+                'tax_code': '0316723904',
+                'address': '113A Đường 109, Khu phố 5, Phường Phước Long B, Thành phố Thủ Đức, Thành phố Hồ Chí Minh, Việt Nam.',
+                'representative': 'Ông / Mr. BYUN SANG HYUN',
+                'position': 'Giám đốc / Director',
+                'note': 'Sau đây gọi tắt là Bên B / Hereinafter referred to as Party B'
+            }
+        },
         'dieu_3': []  # Nội dung công việc
     }
     
-    # Xử lý Điều 3: Nội dung công việc
+    # Process services and their content
     num_services = len(service_details)
     for idx, (service_id, data) in enumerate(service_details.items(), start=1):
         service_content = {
-            'ten_dich_vu': f"3.{idx} {data['ten_dich_vu']}",
+            'ten_dich_vu': f"3.{idx} {data['ten_dich_vu']}" if num_services > 1 else data['ten_dich_vu'],
             'noi_dung': []
         }
         
-        for noi_dung_idx, (ten_noi_dung, chi_tiet) in enumerate(data['noi_dung'], start=1):
-            content_item = {
-                'title': f"3.{idx}.{noi_dung_idx}" if num_services > 1 else f"3.{noi_dung_idx}",
-                'ten_noi_dung': ten_noi_dung,
-                'chi_tiet': []
-            }
+        # Process each content item
+        section_count = 1  # Counter for numbered sections
+        for noi_dung_idx, (ten_noi_dung, chi_tiet) in enumerate(data['noi_dung']):
+            section_number = f"3.{idx}.{section_count}" if num_services > 1 else f"3.{section_count}"
             
-            if chi_tiet:
-                chi_tiet_parts = chi_tiet.split('\\n')
-                for detail_idx, part in enumerate(chi_tiet_parts, start=1):
-                    if part.strip():
-                        detail_number = f"3.{idx}.{noi_dung_idx}.{detail_idx}" if num_services > 1 else f"3.{noi_dung_idx}.{detail_idx}"
-                        content_item['chi_tiet'].append({
-                            'number': detail_number,
-                            'text': part.strip()
-                        })
-            service_content['noi_dung'].append(content_item)
+            if not ten_noi_dung and chi_tiet:
+                # Nếu ten_noi_dung là null, đẩy chi_tiet lên làm mục chính và vẫn đánh số
+                content_item = {
+                    'ten_noi_dung': f"{section_number} {chi_tiet}",
+                    'chi_tiet': []
+                }
+                service_content['noi_dung'].append(content_item)
+                section_count += 1
+            elif ten_noi_dung:
+                # Xử lý mục có ten_noi_dung bình thường
+                content_item = {
+                    'ten_noi_dung': f"{section_number} {ten_noi_dung}",
+                    'chi_tiet': []
+                }
+                
+                if chi_tiet:
+                    chi_tiet_parts = chi_tiet.split('\\n')
+                    for detail_idx, part in enumerate(chi_tiet_parts, start=1):
+                        if part.strip():
+                            detail_number = f"{section_number}.{detail_idx}"
+                            content_item['chi_tiet'].append({
+                                'text': f"{detail_number} {part.strip()}"
+                            })
+                service_content['noi_dung'].append(content_item)
+                section_count += 1
         
         preview_data['dieu_3'].append(service_content)
     
     return preview_data
 
-def generate_contract_word(service_details, contract_number, sign_date):
+def set_cell_border(cell, **kwargs):
+    """
+    Set cell border
+    Usage:
+        set_cell_border(
+            cell,
+            top={"sz": 12, "val": "single", "color": "#000000", "space": "0"},
+            bottom={"sz": 12, "color": "#000000", "val": "single"},
+            start={"sz": 24, "val": "dashed", "color": "#000000"},
+            end={"sz": 12, "val": "dashed", "color": "#000000"}
+        )
+    """
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    
+    # clear existing borders
+    tcBorders = OxmlElement('w:tcBorders')
+    for border in ['top', 'left', 'bottom', 'right']:
+        border_elem = OxmlElement(f'w:{border}')
+        border_elem.set(qn('w:val'), 'nil')
+        tcBorders.append(border_elem)
+    tcPr.append(tcBorders)
+
+def generate_contract_word(service_details, contract_number, sign_date, company_info=None):
     doc = Document()
     
     # Add header with logo and company info
@@ -163,24 +306,208 @@ def generate_contract_word(service_details, contract_number, sign_date):
     date_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     date_text = f'Hợp đồng này được lập ngày {sign_date} tại trụ sở của CÔNG TY TNHH TƯ VẤN UNI.'
     date_para.add_run(date_text)
-    
+    date_para.paragraph_format.space_after = Pt(0)  # No space after
+
     intro_para = doc.add_paragraph()
     intro_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     intro_text = 'Sau khi bàn bạc thỏa thuận, hai bên nhất trí ký Hợp đồng dịch vụ tư vấn với các điều khoản sau:'
     intro_para.add_run(intro_text)
-    
+    intro_para.paragraph_format.space_before = Pt(0)  # No space before
+    intro_para.paragraph_format.space_after = Pt(0)   # No space after
+
     # Add English contract date and intro
     eng_date_para = doc.add_paragraph()
     eng_date_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     eng_date_text = f'This contract was made on {sign_date} at UNI CONSULTING CO., LTD.'
     eng_date_run = eng_date_para.add_run(eng_date_text)
     eng_date_run.italic = True
-    
+    eng_date_para.paragraph_format.space_before = Pt(0)  # No space before
+    eng_date_para.paragraph_format.space_after = Pt(0)   # No space after
+
     eng_intro_para = doc.add_paragraph()
     eng_intro_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     eng_intro_text = 'After discussing the agreement, the two sides agreed to sign a consulting service contract with the following terms:'
     eng_intro_run = eng_intro_para.add_run(eng_intro_text)
     eng_intro_run.italic = True
+    eng_intro_para.paragraph_format.space_before = Pt(0)  # No space before
+    eng_intro_para.paragraph_format.space_after = Pt(6)   # Small space after before next section
+    
+    # Add Article 1
+    article_1 = doc.add_heading('ĐIỀU 1: CÁC BÊN CỦA HỢP ĐỒNG / ARTICLE 1: CONTRACT PARTIES', level=1)
+    article_1.paragraph_format.space_after = Pt(3)
+    
+    # Add Party A
+    party_a = doc.add_paragraph()
+    party_a.add_run('BÊN A / PARTY A:').bold = True
+    party_a.paragraph_format.space_before = Pt(0)
+    party_a.paragraph_format.space_after = Pt(3)
+
+    if company_info:
+        # Create table for Party A info
+        table_a = doc.add_table(rows=5, cols=2)  # Changed from 4 to 5 rows
+        table_a.style = 'Table Grid'
+        table_a.autofit = False
+        
+        # Remove borders and set font size
+        for row in table_a.rows:
+            row.height = Inches(0.35)
+            for cell in row.cells:
+                set_cell_border(cell)
+                for paragraph in cell.paragraphs:
+                    paragraph.paragraph_format.space_before = Pt(0)
+                    paragraph.paragraph_format.space_after = Pt(0)
+                    paragraph.paragraph_format.line_spacing = 1.15
+                    for run in paragraph.runs:
+                        run.font.size = Pt(11)
+
+        # Set column widths
+        table_a.columns[0].width = Inches(2.8)
+        table_a.columns[1].width = Inches(4.2)
+        
+        # Row 1 - Company
+        cell = table_a.cell(0, 0)
+        cell.text = 'Công ty / Company:'
+        cell.paragraphs[0].runs[0].bold = True
+        
+        cell = table_a.cell(0, 1)
+        cell.text = company_info.get('company', '')
+        cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+        cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+        
+        # Row 2 - Tax Code
+        cell = table_a.cell(1, 0)
+        cell.text = 'Mã số thuế / Tax code:'
+        cell.paragraphs[0].runs[0].bold = True
+        
+        cell = table_a.cell(1, 1)
+        cell.text = company_info.get('tax_code', '')
+        cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+        cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+        
+        # Row 3 - Address
+        cell = table_a.cell(2, 0)
+        cell.text = 'Địa chỉ / Address:'
+        cell.paragraphs[0].runs[0].bold = True
+        
+        cell = table_a.cell(2, 1)
+        cell.text = company_info.get('address', '')
+        cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+        cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+        
+        # Row 4 - Representative
+        cell = table_a.cell(3, 0)
+        cell.text = 'Người đại diện / Representative:'
+        cell.paragraphs[0].runs[0].bold = True
+        
+        cell = table_a.cell(3, 1)
+        cell.text = company_info.get('representative', '')
+        cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+        cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+        
+        # Row 5 - Position
+        cell = table_a.cell(4, 0)
+        cell.text = 'Chức vụ / Position:'
+        cell.paragraphs[0].runs[0].bold = True
+        
+        cell = table_a.cell(4, 1)
+        cell.text = company_info.get('position', '')
+        cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+        cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+
+        # Add empty paragraph with minimal spacing
+        doc.add_paragraph().paragraph_format.space_after = Pt(0)
+
+        # Add Party A note immediately after table
+        note_a = doc.add_paragraph()
+        note_a.add_run('Sau đây gọi tắt là Bên A / Hereinafter referred to as Party A').italic = True
+        note_a.paragraph_format.space_before = Pt(0)
+        note_a.paragraph_format.space_after = Pt(3)
+    
+    # Party B
+    party_b = doc.add_paragraph()
+    party_b.add_run('BÊN B / PARTY B:').bold = True
+    party_b.paragraph_format.space_before = Pt(0)
+    party_b.paragraph_format.space_after = Pt(3)
+    
+    # Create table for Party B info
+    table_b = doc.add_table(rows=5, cols=2)  # Changed from 4 to 5 rows
+    table_b.style = 'Table Grid'
+    table_b.autofit = False
+    
+    # Remove borders and set font size
+    for row in table_b.rows:
+        row.height = Inches(0.35)
+        for cell in row.cells:
+            set_cell_border(cell)
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.space_before = Pt(0)
+                paragraph.paragraph_format.space_after = Pt(0)
+                paragraph.paragraph_format.line_spacing = 1.15
+                for run in paragraph.runs:
+                    run.font.size = Pt(11)
+
+    # Set column widths
+    table_b.columns[0].width = Inches(2.8)
+    table_b.columns[1].width = Inches(4.2)
+    
+    # Row 1 - Company
+    cell = table_b.cell(0, 0)
+    cell.text = 'Công ty / Company:'
+    cell.paragraphs[0].runs[0].bold = True
+    
+    cell = table_b.cell(0, 1)
+    cell.text = 'CÔNG TY TNHH TƯ VẤN UNI / UNI CONSULTING CO., LTD'
+    cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+    cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+    
+    # Row 2 - Tax Code
+    cell = table_b.cell(1, 0)
+    cell.text = 'Mã số thuế / Tax code:'
+    cell.paragraphs[0].runs[0].bold = True
+    
+    cell = table_b.cell(1, 1)
+    cell.text = '0316723904'
+    cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+    cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+    
+    # Row 3 - Address
+    cell = table_b.cell(2, 0)
+    cell.text = 'Địa chỉ / Address:'
+    cell.paragraphs[0].runs[0].bold = True
+    
+    cell = table_b.cell(2, 1)
+    cell.text = '113A Đường 109, Khu phố 5, Phường Phước Long B, Thành phố Thủ Đức, Thành phố Hồ Chí Minh, Việt Nam.'
+    cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+    cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+    
+    # Row 4 - Representative
+    cell = table_b.cell(3, 0)
+    cell.text = 'Người đại diện / Representative:'
+    cell.paragraphs[0].runs[0].bold = True
+    
+    cell = table_b.cell(3, 1)
+    cell.text = 'Ông / Mr. BYUN SANG HYUN'
+    cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+    cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+    
+    # Row 5 - Position
+    cell = table_b.cell(4, 0)
+    cell.text = 'Chức vụ / Position:'
+    cell.paragraphs[0].runs[0].bold = True
+    
+    cell = table_b.cell(4, 1)
+    cell.text = 'Giám đốc / Director'
+    cell.paragraphs[0].paragraph_format.space_before = Pt(3)
+    cell.paragraphs[0].paragraph_format.space_after = Pt(3)
+    
+    # Add empty paragraph with minimal spacing
+    doc.add_paragraph().paragraph_format.space_after = Pt(0)
+    
+    # Add Party B note
+    note_b = doc.add_paragraph()
+    note_b.add_run('Sau đây gọi tắt là Bên B / Hereinafter referred to as Party B').italic = True
+    note_b.paragraph_format.space_before = Pt(0)
+    note_b.paragraph_format.space_after = Pt(3)
     
     # Add content section
     doc.add_heading('ĐIỀU 3: NỘI DUNG CÔNG VIỆC / ARTICLE 3: CONTENT OF WORK', level=1)
@@ -195,9 +522,14 @@ def generate_contract_word(service_details, contract_number, sign_date):
             service_para.add_run(f'3.{idx} {data["ten_dich_vu"]}:').bold = True
             
             for noi_dung_idx, (ten_noi_dung, chi_tiet) in enumerate(data['noi_dung'], start=1):
-                if ten_noi_dung:
-                    content_para = doc.add_paragraph()
-                    content_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                content_para = doc.add_paragraph()
+                content_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                
+                if not ten_noi_dung and chi_tiet:
+                    # Nếu ten_noi_dung là null, đẩy chi_tiet lên làm mục chính
+                    content_para.add_run(f'3.{idx}.{noi_dung_idx} {chi_tiet}').bold = True
+                elif ten_noi_dung:
+                    # Xử lý mục có ten_noi_dung bình thường
                     content_para.add_run(f'3.{idx}.{noi_dung_idx} {ten_noi_dung}:').bold = True
                     
                     if chi_tiet:
@@ -210,10 +542,15 @@ def generate_contract_word(service_details, contract_number, sign_date):
         else:
             # Single service case
             for noi_dung_idx, (ten_noi_dung, chi_tiet) in enumerate(data['noi_dung'], start=1):
-                if ten_noi_dung:
-                    content_para = doc.add_paragraph()
-                    content_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                    content_para.add_run(f'3.{noi_dung_idx} {ten_noi_dung}:').bold = True
+                content_para = doc.add_paragraph()
+                content_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                
+                if not ten_noi_dung and chi_tiet:
+                    # Nếu ten_noi_dung là null, đẩy chi_tiet lên làm mục chính
+                    content_para.add_run(f'3.3.{noi_dung_idx} {chi_tiet}').bold = True
+                elif ten_noi_dung:
+                    # Xử lý mục có ten_noi_dung bình thường
+                    content_para.add_run(f'3.3.{noi_dung_idx} {ten_noi_dung}:').bold = True
                     
                     if chi_tiet:
                         chi_tiet_parts = chi_tiet.split('\\n')
@@ -221,7 +558,7 @@ def generate_contract_word(service_details, contract_number, sign_date):
                             if part.strip():
                                 detail_para = doc.add_paragraph()
                                 detail_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                                detail_para.add_run(f'3.{noi_dung_idx}.{detail_idx} {part.strip()}')
+                                detail_para.add_run(f'3.3.{noi_dung_idx}.{detail_idx} {part.strip()}')
 
     # Save the document
     output_dir = os.path.join(Config.UPLOAD_FOLDER, 'contracts')

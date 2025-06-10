@@ -22,7 +22,8 @@ class Config:
             'site_url': 'https://uniconsulting079.sharepoint.com/sites/ClearanceFlowAutomation',
             'lists': {
                 'debit': 'Debit list',
-                'declaration': 'Debit list'
+                'declaration': 'Debit list',
+                'contract': 'Contract Management'
             }
         },
         'clearance': {

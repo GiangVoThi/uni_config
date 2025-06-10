@@ -40,6 +40,13 @@
             border-color: #80bdff;
             box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
         }
+        /* Style cho select boxes bị disable */
+        .form-select:disabled {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+            color: #495057;
+            border-color: #ced4da;
+        }
         /* Style cho danh sách dịch vụ */
         .services-list {
             max-height: 300px;
@@ -141,6 +148,29 @@
         .preview-intro p[id*="EN"] {
             font-style: italic;
         }
+        /* Style cho thông tin công ty */
+        .party-info {
+            margin-left: 20px;
+            margin-bottom: 30px;
+        }
+        .info-row {
+            display: table;
+            margin-bottom: 25px;
+            width: 100%;
+        }
+        .info-label {
+            display: table-cell;
+            width: 200px;
+            padding-right: 15px;
+            vertical-align: top;
+            white-space: nowrap;
+        }
+        .info-value {
+            display: table-cell;
+            padding-left: 15px;
+            vertical-align: top;
+            line-height: 1.8;
+        }
         /* Style cho bảng hợp đồng */
         .contracts-table {
             margin-top: 20px;
@@ -187,9 +217,6 @@
     <div class="container mt-5">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Quản Lý Hợp Đồng</h1>
-            <button type="button" class="btn btn-primary" onclick="showContractModal()">
-                <i class="bi bi-plus-circle"></i> Thêm Hợp Đồng
-            </button>
         </div>
 
         <!-- Bảng danh sách hợp đồng -->
@@ -207,7 +234,6 @@
                             <th>Số Hợp Đồng</th>
                             <th>Ngày Ký</th>
                             <th>Dịch Vụ</th>
-                            <th>Thao Tác</th>
                         </tr>
                     </thead>
                     <tbody id="contractsTableBody">
@@ -223,7 +249,7 @@
                 <i class="bi bi-file-earmark-plus"></i>
                 <span>Tạo Hợp Đồng Mới</span>
             </div>
-            <form id="contractForm" method="POST" action="{{ url_for('contract.generate_contract') }}">
+            <form id="contractForm" method="POST" action="{{ url_for('contract.generate_contract') }}" enctype="multipart/form-data">
                 <!-- Phần Dịch Vụ -->
                 <div class="mb-3">
                     <label class="form-label">Chọn dịch vụ</label>
@@ -234,73 +260,66 @@
 
                 <!-- Phần Chi Tiết Hợp Đồng -->
                 <div id="contractDetails" class="hidden">
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="contractName" class="form-label">Tên hợp đồng</label>
-                            <input type="text" class="form-control" id="contractName" name="contract_name" 
-                                   value="HỢP ĐỒNG DỊCH VỤ" disabled>
-                        </div>
-                        <div class="col-md-12 mb-3">
-                            <label for="contractNumber" class="form-label">Số hợp đồng <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="contractNumber" name="contract_number" required>
-                        </div>
-                        <div class="col-md-12 mb-3">
-                            <label for="signDate" class="form-label">Ngày ký <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="signDate" name="sign_date" required>
-                        </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="contractName" class="form-label">Tên hợp đồng</label>
+                        <input type="text" class="form-control" id="contractName" name="contract_name" 
+                               value="HỢP ĐỒNG DỊCH VỤ" disabled>
                     </div>
-                    <div class="text-center mt-4">
-                        <button type="button" class="btn btn-secondary btn-preview px-4" onclick="previewContract()">
-                            <i class="bi bi-eye"></i> Xem trước
-                        </button>
-                        <button type="submit" class="btn btn-primary px-4">
-                            <i class="bi bi-file-earmark-word"></i> Tạo File Word
-                        </button>
-                        <button type="button" class="btn btn-success px-4" onclick="createContractFromDetails()">
-                            <i class="bi bi-plus-circle"></i> Lưu Hợp Đồng
-                        </button>
+                    <div class="col-md-12 mb-3">
+                        <label for="contractNumber" class="form-label">Số hợp đồng <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="contractNumber" name="contract_number" required>
                     </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="signDate" class="form-label">Ngày ký <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="signDate" name="sign_date" required>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="companyName" class="form-label">Tên công ty <span class="text-danger">*</span></label>
+                        <select class="form-select" id="companyName" name="company_name" required>
+                            <option value="">Chọn công ty</option>
+                        </select>
+                        <input type="hidden" id="hiddenTaxCode" name="tax_code">
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="taxCode" class="form-label">Mã số thuế <span class="text-danger">*</span></label>
+                        <select class="form-select" id="taxCode" name="tax_code" required>
+                            <option value="">Chọn mã số thuế</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="companyAddress" class="form-label">Địa chỉ <span class="text-danger">*</span></label>
+                        <select class="form-select" id="companyAddress" name="company_address" required>
+                            <option value="">Chọn địa chỉ</option>
+                        </select>
+                        <input type="hidden" id="hiddenAddress" name="company_address">
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="representative" class="form-label">Người đại diện <span class="text-danger">*</span></label>
+                        <select class="form-select" id="representative" name="representative" required>
+                            <option value="">Chọn người đại diện</option>
+                        </select>
+                        <input type="hidden" id="hiddenRepresentative" name="representative">
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label for="position" class="form-label">Chức vụ <span class="text-danger">*</span></label>
+                        <select class="form-select" id="position" name="position" required>
+                            <option value="">Chọn chức vụ</option>
+                        </select>
+                        <input type="hidden" id="hiddenPosition" name="position">
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <button type="button" class="btn btn-secondary btn-preview px-4" onclick="previewContract()">
+                        <i class="bi bi-eye"></i> Xem trước
+                    </button>
+                    <button type="submit" class="btn btn-primary px-4" onclick="return validateContractForm()">
+                        <i class="bi bi-file-earmark-word"></i> Tạo File Word
+                    </button>
+                    <button type="button" class="btn btn-success px-4" onclick="createContractFromDetails()">
+                        <i class="bi bi-plus-circle"></i> Lưu Hợp Đồng
+                    </button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Modal Thêm/Sửa Hợp Đồng -->
-    <div class="modal fade" id="contractModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="contractModalTitle">Thêm Hợp Đồng Mới</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="contractModalForm">
-                        <input type="hidden" id="contractId">
-                        <div class="mb-3">
-                            <label for="modalContractName" class="form-label">Tên hợp đồng</label>
-                            <input type="text" class="form-control" id="modalContractName" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="modalContractNumber" class="form-label">Số hợp đồng</label>
-                            <input type="text" class="form-control" id="modalContractNumber" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="modalSignDate" class="form-label">Ngày ký</label>
-                            <input type="date" class="form-control" id="modalSignDate" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Dịch vụ</label>
-                            <div class="services-list" id="modalServicesList">
-                                <!-- Danh sách dịch vụ sẽ được thêm vào đây bằng JavaScript -->
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                    <button type="button" class="btn btn-primary" onclick="saveContract()">Lưu</button>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -353,10 +372,7 @@
                         </div>
 
                         <!-- Content -->
-                        <div class="preview-section mt-4">
-                            <h3>ĐIỀU 3: NỘI DUNG CÔNG VIỆC</h3>
-                            <div id="previewContent"></div>
-                        </div>
+                        <div id="previewContent"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -371,8 +387,6 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         // Khởi tạo các biến
-        const contractModal = new bootstrap.Modal(document.getElementById('contractModal'));
-        let editingContractId = null;
         let selectedServiceIds = [];
 
         // Utility functions
@@ -439,7 +453,7 @@
                         <div class="service-item">
                             <label class="d-flex align-items-center">
                                 <input type="checkbox" class="service-checkbox me-2" 
-                                       value="${service.id}" id="service${service.id}">
+                                       name="service_ids[]" value="${service.id}" id="service${service.id}">
                                 <span>${service.name}</span>
                             </label>
                         </div>
@@ -459,28 +473,6 @@
             }
         };
 
-        const loadModalServices = async (selectedIds = []) => {
-            try {
-                const response = await $.getJSON("{{ url_for('contract.get_services') }}" + (editingContractId ? `?contract_id=${editingContractId}` : ''));
-                const $servicesList = $('#modalServicesList');
-                $servicesList.empty();
-                
-                response.forEach(service => {
-                    const serviceItem = `
-                        <div class="service-item">
-                            <label class="d-flex align-items-center">
-                                <span>${service.name}</span>
-                            </label>
-                        </div>
-                    `;
-                    $servicesList.append(serviceItem);
-                });
-            } catch (error) {
-                console.error('Error loading modal services:', error);
-                showError('Có lỗi khi tải danh sách dịch vụ');
-            }
-        };
-
         const loadContracts = async () => {
             try {
                 showLoading();
@@ -496,14 +488,6 @@
                             <td>${contract.so_hop_dong}</td>
                             <td>${contract.ngay_ky}</td>
                             <td>${contract.dich_vu}</td>
-                            <td class="action-buttons">
-                                <button class="btn btn-sm btn-primary" onclick="editContract(${contract.id})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="deleteContract(${contract.id})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
                         </tr>
                     `;
                     $tbody.append(row);
@@ -553,7 +537,7 @@
                 ten_hop_dong: $('#contractName').val(),
                 so_hop_dong: $('#contractNumber').val(),
                 ngay_ky: formatDateToVietnamese($('#signDate').val()),
-                dich_vu_ids: selectedServices  // Thêm danh sách dịch vụ vào dữ liệu gửi đi
+                dich_vu_ids: selectedServices
             };
 
             try {
@@ -579,100 +563,37 @@
             }
         };
 
-        const editContract = async (id) => {
-            try {
-                showLoading();
-                const response = await $.get(`{{ url_for('contract.get_contract', id_hop_dong=0) }}`.replace('0', id));
-                editingContractId = id;
-                selectedServiceIds = response.id_dich_vu || [];
-                
-                $('#contractId').val(id);
-                $('#modalContractName').val(response.ten_hop_dong);
-                $('#modalContractNumber').val(response.so_hop_dong);
-                
-                // Chuyển đổi ngày từ dd/mm/yyyy sang yyyy-mm-dd cho input type="date"
-                const [day, month, year] = response.ngay_ky.split('/');
-                $('#modalSignDate').val(`${year}-${month}-${day}`);
-                
-                $('#contractModalTitle').text('Sửa Hợp Đồng');
-                
-                // Load services và chọn dịch vụ hiện tại
-                await loadModalServices(selectedServiceIds);
-                
-                Swal.close();
-                contractModal.show();
-            } catch (error) {
-                console.error('Error editing contract:', error);
-                showError('Có lỗi khi tải thông tin hợp đồng');
-            }
-        };
-
-        const deleteContract = async (id) => {
-            const confirmed = await showConfirm('Bạn có chắc chắn muốn xóa hợp đồng này?');
-            if (confirmed) {
-                try {
-                    showLoading();
-                    const response = await $.ajax({
-                        url: `{{ url_for('contract.remove_contract', id_hop_dong=0) }}`.replace('0', id),
-                        type: 'DELETE'
-                    });
-                    
-                    showSuccess(response.message);
-                    await loadContracts();
-                } catch (error) {
-                    console.error('Error deleting contract:', error);
-                    showError(error.responseJSON?.error || 'Có lỗi xảy ra khi xóa hợp đồng!');
-                }
-            }
-        };
-
-        const saveContract = async () => {
-            const contractData = {
-                ten_hop_dong: $('#modalContractName').val(),
-                so_hop_dong: $('#modalContractNumber').val(),
-                ngay_ky: formatDateToVietnamese($('#modalSignDate').val()),
-                dich_vu_ids: selectedServiceIds
-            };
-
-            if (editingContractId) {
-                contractData.id_hop_dong = editingContractId;
-            }
-
-            try {
-                showLoading();
-                const response = await $.ajax({
-                    url: "{{ url_for('contract.create_update_contract') }}",
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify(contractData)
-                });
-
-                showSuccess(response.message);
-                contractModal.hide();
-                await loadContracts();
-            } catch (error) {
-                console.error('Error saving contract:', error);
-                showError(error.responseJSON?.error || 'Có lỗi xảy ra khi lưu hợp đồng!');
-            }
-        };
-
         const previewContract = async () => {
             if (!validateContractForm()) {
                 return;
             }
 
             // Lấy danh sách ID dịch vụ được chọn
-            const selectedServices = [];
+            const selectedServiceIds = [];
             $('#servicesList .service-checkbox:checked').each(function() {
-                selectedServices.push($(this).val());
+                selectedServiceIds.push($(this).val());
             });
+
+            // Tạm thời enable các trường disabled để lấy giá trị
+            const disabledFields = $('#taxCode, #companyAddress, #representative, #position').filter(':disabled');
+            disabledFields.prop('disabled', false);
 
             const formData = new FormData();
             formData.append('contract_number', $('#contractNumber').val());
-            formData.append('sign_date', $('#signDate').val());
-            selectedServices.forEach(id => {
+            formData.append('sign_date', formatDateToVietnamese($('#signDate').val()));
+            formData.append('company_name', $('#companyName').val());
+            formData.append('tax_code', $('#taxCode').val());
+            formData.append('company_address', $('#companyAddress').val());
+            formData.append('representative', $('#representative').val());
+            formData.append('position', $('#position').val());
+            
+            // Gửi service_ids thay vì tên dịch vụ
+            selectedServiceIds.forEach(id => {
                 formData.append('service_ids[]', id);
             });
+
+            // Disable lại các trường
+            disabledFields.prop('disabled', true);
 
             try {
                 showLoading();
@@ -688,6 +609,7 @@
                 Swal.close();
                 new bootstrap.Modal(document.getElementById('previewModal')).show();
             } catch (error) {
+                console.error('Error in preview:', error);
                 showError(error.responseJSON?.error || 'Có lỗi xảy ra khi tạo xem trước!');
             }
         };
@@ -715,30 +637,100 @@
             $('#previewDateVN').text(response.date.vn);
             $('#previewIntroEN').text(response.intro.en);
 
-            // Content
-            const contentHtml = response.dieu_3.map(service => {
-                let serviceHtml = `<div class="content-item">${service.ten_dich_vu}</div>`;
+            // Clear content
+            $('#previewContent').empty();
+
+            // Add Article 1
+            const article1Html = `
+                <div class="preview-section mt-4">
+                    <h3>${response.article_1.title}</h3>
+                    <div class="party-info">
+                        <p><strong>${response.article_1.party_a.title}</strong></p>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Công ty / Company:</strong></div>
+                            <div class="info-value">${response.article_1.party_a.company || ''}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Mã số thuế / Tax code:</strong></div>
+                            <div class="info-value">${response.article_1.party_a.tax_code || ''}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Địa chỉ / Address:</strong></div>
+                            <div class="info-value">${response.article_1.party_a.address || ''}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Người đại diện / Representative:</strong></div>
+                            <div class="info-value">${response.article_1.party_a.representative || ''}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Chức vụ / Position:</strong></div>
+                            <div class="info-value">${response.article_1.party_a.position || ''}</div>
+                        </div>
+                        <p><i>${response.article_1.party_a.note}</i></p>
+                        
+                        <p class="mt-4"><strong>${response.article_1.party_b.title}</strong></p>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Công ty / Company:</strong></div>
+                            <div class="info-value">${response.article_1.party_b.company}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Mã số thuế / Tax code:</strong></div>
+                            <div class="info-value">${response.article_1.party_b.tax_code}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Địa chỉ / Address:</strong></div>
+                            <div class="info-value">${response.article_1.party_b.address}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Người đại diện / Representative:</strong></div>
+                            <div class="info-value">${response.article_1.party_b.representative}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label"><strong>Chức vụ / Position:</strong></div>
+                            <div class="info-value">${response.article_1.party_b.position}</div>
+                        </div>
+                        <p><i>${response.article_1.party_b.note}</i></p>
+                    </div>
+                </div>
+            `;
+
+            // Add Article 3
+            const article3Html = response.dieu_3.map((service, serviceIndex) => {
+                let serviceHtml = '';
+                // Chỉ hiển thị tên dịch vụ nếu có nhiều hơn 1 dịch vụ
+                if (response.dieu_3.length > 1) {
+                    serviceHtml = `<div class="content-item">${service.ten_dich_vu}</div>`;
+                }
                 
-                service.noi_dung.forEach(item => {
+                service.noi_dung.forEach((item, itemIndex) => {
                     if (item.ten_noi_dung) {
                         serviceHtml += `
                             <div class="content-item">
-                                ${item.title} ${item.ten_noi_dung}
+                                ${item.ten_noi_dung}
                             </div>`;
+                        
+                        if (item.chi_tiet && item.chi_tiet.length > 0) {
+                            item.chi_tiet.forEach(detail => {
+                                serviceHtml += `
+                                    <div class="content-detail">
+                                        ${detail.text}
+                                    </div>`;
+                            });
+                        }
                     }
-                    
-                    item.chi_tiet.forEach(detail => {
-                        serviceHtml += `
-                            <div class="content-detail">
-                                ${detail.number} ${detail.text}
-                            </div>`;
-                    });
                 });
-                
                 return serviceHtml;
             }).join('');
 
-            $('#previewContent').html(contentHtml);
+            // Append content in correct order: Article 1 first, then Article 3
+            $('#previewContent')
+                .append(article1Html)
+                .append(`
+                    <div class="preview-section mt-4">
+                        <h3>ĐIỀU 3: NỘI DUNG CÔNG VIỆC / ARTICLE 3: CONTENT OF WORK</h3>
+                        ${article3Html}
+                    </div>
+                `);
         };
 
         // Event handlers
@@ -746,12 +738,24 @@
             // Load initial data
             loadServicesList();
             loadContracts();
+            loadSharePointData();
 
             // Handle contract form submit
-            $('#contractForm').on('submit', (e) => {
+            $('#contractForm').on('submit', function(e) {
                 if (!validateContractForm()) {
                     e.preventDefault();
+                    return;
                 }
+
+                // Tạm thời enable các trường disabled để đảm bảo giá trị được gửi đi
+                const disabledFields = $('#taxCode, #companyAddress, #representative, #position').filter(':disabled');
+                disabledFields.prop('disabled', false);
+
+                // Form sẽ tự submit sau khi enable các trường
+                // Sau khi form đã submit, chúng ta sẽ disable lại các trường
+                setTimeout(() => {
+                    disabledFields.prop('disabled', true);
+                }, 100);
             });
 
             // Handle sign date change
@@ -762,11 +766,107 @@
                     $(this).data('formatted-date', formattedDate);
                 }
             });
+        });
 
-            // Thêm sự kiện khi mở modal
-            $('#contractModal').on('show.bs.modal', async function (e) {
-                await loadModalServices();
-            });
+        // SharePoint Data Loading
+        const loadSharePointData = async () => {
+            try {
+                console.log('Loading SharePoint data...');
+                const response = await $.getJSON("{{ url_for('contract.get_sharepoint_data_api') }}");
+                console.log('SharePoint data received:', response);
+                
+                // Create mapping objects for company data
+                const companyDataMap = {};
+                response.companies.forEach((company, index) => {
+                    companyDataMap[company] = {
+                        tax_code: response.tax_codes[index],
+                        address: response.addresses[index],
+                        representative: response.representatives[index],
+                        position: response.positions[index]
+                    };
+                });
+                
+                // Load companies
+                const $companySelect = $('#companyName');
+                $companySelect.empty().append('<option value="">Chọn công ty</option>');
+                response.companies.forEach(company => {
+                    $companySelect.append(`<option value="${company}">${company}</option>`);
+                });
+                
+                // Load tax codes
+                const $taxCodeSelect = $('#taxCode');
+                $taxCodeSelect.empty().append('<option value="">Chọn mã số thuế</option>');
+                response.tax_codes.forEach(taxCode => {
+                    $taxCodeSelect.append(`<option value="${taxCode}">${taxCode}</option>`);
+                });
+                
+                // Load addresses
+                const $addressSelect = $('#companyAddress');
+                $addressSelect.empty().append('<option value="">Chọn địa chỉ</option>');
+                response.addresses.forEach(address => {
+                    $addressSelect.append(`<option value="${address}">${address}</option>`);
+                });
+                
+                // Load representatives
+                const $representativeSelect = $('#representative');
+                $representativeSelect.empty().append('<option value="">Chọn người đại diện</option>');
+                response.representatives.forEach(representative => {
+                    $representativeSelect.append(`<option value="${representative}">${representative}</option>`);
+                });
+                
+                // Load positions
+                const $positionSelect = $('#position');
+                $positionSelect.empty().append('<option value="">Chọn chức vụ</option>');
+                response.positions.forEach(position => {
+                    $positionSelect.append(`<option value="${position}">${position}</option>`);
+                });
+
+                // Store the mapping for later use
+                window.companyDataMap = companyDataMap;
+                
+                console.log('SharePoint data loaded successfully');
+                console.log('Company Data Map:', companyDataMap);
+            } catch (error) {
+                console.error('Error loading SharePoint data:', error);
+                showError('Có lỗi khi tải dữ liệu từ SharePoint');
+            }
+        };
+
+        // Thêm event listener cho việc thay đổi công ty
+        $('#companyName').on('change', function() {
+            const selectedCompany = $(this).val();
+            const companyData = window.companyDataMap[selectedCompany];
+            
+            if (companyData) {
+                // Set values and disable fields
+                $('#taxCode').val(companyData.tax_code).prop('disabled', true);
+                $('#companyAddress').val(companyData.address).prop('disabled', true);
+                $('#representative').val(companyData.representative).prop('disabled', true);
+                $('#position').val(companyData.position).prop('disabled', true);
+
+                // Set hidden fields
+                $('#hiddenTaxCode').val(companyData.tax_code);
+                $('#hiddenAddress').val(companyData.address);
+                $('#hiddenRepresentative').val(companyData.representative);
+                $('#hiddenPosition').val(companyData.position);
+            } else {
+                // Reset and enable fields if no company is selected
+                $('#taxCode').val('').prop('disabled', false);
+                $('#companyAddress').val('').prop('disabled', false);
+                $('#representative').val('').prop('disabled', false);
+                $('#position').val('').prop('disabled', false);
+
+                // Clear hidden fields
+                $('#hiddenTaxCode').val('');
+                $('#hiddenAddress').val('');
+                $('#hiddenRepresentative').val('');
+                $('#hiddenPosition').val('');
+            }
+        });
+
+        // Gọi hàm load dữ liệu khi trang được load
+        $(document).ready(function() {
+            loadSharePointData();
         });
     </script>
 </body>
